@@ -1,0 +1,185 @@
+---
+title: "The Effect Parental Divorce or Seperation has on a Person Relationships"
+author: "Isaac Casey"
+date: "Monday October 19, 2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Abstract
+
+In this study I will look at the divorce and marriage rates of people whose parents are also divorced to people whose parents are not. I use data from the General Social Survey on Family 2017 to conduct my analysis. Using a simple logistical regression model, I am able to find the results of the study. I that people who have parents that are divorced are more probable to get a divorce in their marriages. They are also less likely to get married in general when compared to people whose parents are not divorced. 
+
+## Introduction
+
+In this study, I will be examining the effects a parental divorce or separation has on a persons marital status. This topic of study peaked my interest as I am in this situation so I was inevitably curious to find out what the statistical outcomes are for a person whose parents are no longer together. Specifically I will be looking at the likelihood a person whose parents are separated or divorced also goes through a divorce compared to a person whose parents did not split. Furthermore I will also be comparing the probability a person gets married and such persons parents are divorced to the probability a person gets married and their parents are together still.
+
+In the data section I will explain where I got the data used in this study from, and I will explain the variables I used and how I used them. In the model section I will explain the model I used and why I chose such model instead of others. In the results section I will display the outcomes produced by my model of the data and I will elaborate on the insights of said results in the discussion section. Lastly, I will state any weakness in this analysis and next steps for further analysis on this study in the weakness and next steps section respectively. 
+
+## Data
+
+The data used in this survey is from the General Social Survey on Family 2017. The objectives of the GSS is "to gather data on social trends in order to monitor changes in the living conditions and well being of Canadians over time and to provide information on specific social policy issues of current or emerging interest." The target population of the GSS are individuals over the age of 15 who are non institutionalized and live in Canada. Although the general social survey on family contains a wide range of variables and questions, this study only focuses on a few of those variables. The main variables I used are as followed:
+
+Age when parents got divorced and age when parents separated: I used these two variables to found out whether a persons parents were together or not. For this study I did not take into account the age when the parents separated or divorced, I was merely concerned only if the parents were together or not. 
+Have you ever been married: I used this variable to see whether or not the respondent was ever married. 
+Number of divorces or separations: I used this variable to see if the person had ever gone through a divorce or a separation. A drawback of this variable is that one could go through separations from a common law relationship without getting married.
+
+## Model
+
+For this study, I could have used many different models. The two that I considered were a simple linear regression model or a simple logistical regression model. A reason for why simple linear regression would work because for both of objectives I was looking at, I wanted to predict the outcome on the basis of a single predictor variable, whether their parents were separated or not. I could also use the logistic regression model due to the outcome variable of both of my objects being binary. Have you ever been through a divorce or separation? Have you ever been married? Both of which are binary yes or no answers. Thus I decided to use a simple logistical regression model. 
+
+To compute the logistical regression model I went through the following steps. Firstly I cleaned the data obtained from the GSS survey modifying the R script template provided by Rohan Alexander and Sam Caetano while also making some minor adjustments to suit my specific objectives. Next I split my data into train and test data sets. The purpose of this is so I can test the accuracy and validity of my model using the whole data frame as my reference. Then I used the glm() function which allows me to compute a logistical regression model. To do so you need to specify the parameter family = binomial. Now that the model is made, I can predict the probability of my objectives, that is if someone has been in a divorce or if someone has ever been married based on the predictor of whether their parents are divorced. Next to test the accuracy of the model, I check the proportion of predictions that were correct. 
+
+## Results
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(caret)
+data <- read.csv("analysis1.csv")
+
+data1 <-data %>% 
+  filter(parents_divorced >=0 | parents_separated >=0) %>% 
+  mutate(parents_divorced = 1)
+
+#Pie graph of number of divorces/separations of people whose parents are not together
+data1 %>% 
+  select(separate_or_divorce) %>% 
+  pull() %>% table %>% pie(main = "Figure 1")
+print("This figure shows the number of divorces for people whose parents are also divorced")
+
+data1 %>% 
+  select(ever_married) %>% 
+  pull() %>% table %>% pie(main = "Figure 2")
+print("This figure shows the ratio of people who got married and whose parents are divorced")
+
+data2 <- data %>% 
+  filter(is.na(parents_divorced) & is.na(parents_separated)) %>% 
+  mutate(parents_divorced = 0)
+
+#Pie graph of number of divorces/separations of people whose parents are together
+data2 %>% 
+  select(separate_or_divorce) %>% 
+  pull() %>% table %>% pie(main = "Figure 3")
+print("This figure shows the number of divorces for people whose parents are also together")
+
+data2 %>% 
+  select(ever_married) %>% 
+  pull() %>% table %>% pie(main = "Figure 4")
+print("This figure shows the ratio of people who got married and whose parents are together")
+
+# if parents_divorced = 1, then parents are divorced or separated, else parents are together still
+data <- rbind(data1, data2)
+
+data3 <- data %>% 
+  filter(separate_or_divorce > 0) %>% 
+  mutate(separate_or_divorce = 1)
+
+data4 <- data %>% 
+  filter(separate_or_divorce == 0)
+
+# if separate_or_divorce = 1, then respondent has had a divorce or separation
+data <- rbind(data3,data4)
+
+set.seed(1003394409)
+training.samples <- data$separate_or_divorce %>% 
+  createDataPartition(p = 0.8, list = FALSE)
+train.data  <- data[training.samples, ]
+test.data <- data[-training.samples, ]
+
+# Logistic regression model, probability you get divorced if parents are divorced
+logitDiv <- glm(separate_or_divorce ~ parents_divorced, data = train.data, family="binomial") 
+
+print("A summary of the simple logistical regression for the probability if someone is divorced based on if their parents are divorced or separated. From this we can see log(p/(1-p)) = -0.81986 + 0.59516*parents_divorced")
+summary(logitDiv)
+
+
+probabilities <- logitDiv %>% predict(test.data, type = "response")
+predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
+
+#Model Accuracy
+mod1acc <- mean(predicted.classes == test.data$separate_or_divorce)
+print(paste0("The model accuracy is ", mod1acc))
+
+train.data %>%
+  mutate(prob = ifelse(separate_or_divorce == 1, 1, 0)) %>%
+  ggplot(aes(parents_divorced, prob)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial")) +
+  labs(
+    title = "Figure 5 - Logistic Regression Model, Probability of Getting Divorced or Separating", 
+    x = "Parents Divorced or separated",
+    y = "Probability of getting divorced or separating"
+    )
+
+ndata1 <- data %>% 
+  filter(ever_married == "Yes") %>%
+  mutate(ever_married = 1)
+
+ndata2 <- data %>% 
+  filter(ever_married == "No" | ever_married == "Don't know") %>% 
+  mutate(ever_married = 0)
+
+data <- rbind(ndata1, ndata2)
+
+
+set.seed(1003394409)
+training.samples <- data$ever_married %>% 
+  createDataPartition(p = 0.8, list = FALSE)
+train.data  <- data[training.samples, ]
+test.data <- data[-training.samples, ]
+
+
+# Logistic regression model, probability you get married if parents are divorced
+logitMar <- glm(ever_married ~ parents_divorced, data = train.data, family="binomial")  
+
+print("A summary of the simple logistical regression for the probability if someone is married based on if their parents are divorced or separated. From this we can see log(p/(1-p)) = 0.98292 -0.79320*parents_divorced")
+summary(logitMar)
+
+probabilities <- logitMar %>% predict(test.data, type = "response")
+predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
+
+#Model Accuracy
+mod2acc <- mean(predicted.classes == test.data$ever_married)
+print(paste0("The model accuracy is ", mod2acc))
+
+train.data %>%
+  mutate(prob = ifelse(ever_married == 1, 1, 0)) %>%
+  ggplot(aes(parents_divorced, prob)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial")) +
+  labs(
+    title = "Figure 6 - Logistic Regression Model, Probabilty of Getting Married", 
+    x = "Parents Divorced or separated",
+    y = "Probability of getting Married"
+    )
+
+```
+
+
+## Discussion
+
+The first objective of this study was to compare divorce rates between people whose parents are divorced or separated to people whose parents are still together. Just from comparing figure 1 to figure 3, we can see a big discrepancy between the two cases. Also from figure 6, it is clearly seen that people whose parents are divorced or separated are shown to have a higher probability of one or multiple divorces or separations in their future relationships. More specifically using the simple logistical model, the probability of someone getting a divorce or separation is found to be log(p/(1-p)) = -0.81986 + 0.59516*parents_divorced, where parents_divorced equal 1 if the persons parents are divorced or separated or equal 0 is they are not. After calculating, the probability of getting a divorce or separating when your parents also have is 44.4% whereas the probability of divorce when your parents are still together is 30.6%. As represented in Figure 5. The accuracy of this model was found to be 67.5%.
+
+The second objective of this study was to compare the marriage rates between people whose are divorced or separated to those whose parents are still together. By looking at figure 2 and figure 4, we can see that in both situations the marriage rate is greater than 50%, although it appears to be higher when the persons parents are still together. When looking at the simple logistical model produced from the data we can see the probability to get married is log(p/(1-p)) = 0.98292 -0.79320*parents_divorced. Solving for probability p, we get the marriage rate for people whose parents are not together is 54.7% whereas for people whose parents are together, the probability of marriage is 72.8%. Figure 6 accurately depicts this. The accuracy of this model was found to be 70.2%.
+
+# Weaknesses
+
+A weakness of this study is that I didn't take age into consideration. Since the GSS survey is open to any individual 15 years and older, there can be caveat where multiple 15 year olds who are children of divorce are recorded and obviously they are not married or have gone through divorces. Thus skewing the results of the study. Another weakness is that the number of divorces and separations are in a single variable. Thus there can be the case of a person never being married but have a number greater than zero in the divorce or separation variable. This is due to a common-law relationship being counted toward the separation statistic. For this study to be more accurate, it'd need a separate variable for number of divorces and number of separations. 
+
+# Next Steps
+
+A follow-up study to this study could be to take age into account. See if divorce or separation of parents at different age groups such as infant, adolescent, etc  yields different outcomes in marital status. A study like this could show that divorces that happen when the person is still a child could impact their future relationships more than if they are a young adult. I would also be interested in if the terms on which the parents relationship ended in, whether it was mutual or not plays a factor in the person relationships. You could also take into account whether or not the individual has a sibling or not at the time of divorce/ separation. The possibility of going through this time with someone else could positively affect them thereby changing the results. This can play into a multiple logistical regression where more categorical or continuous variables are taken into account rather than just whether or not the parents are divorced/separated or not. 
+
+## References
+
+Kassambara, et al. “Logistic Regression Essentials in R.” STHDA, 11 Mar. 2018, www.sthda.com/english/articles/36-classification-methods-essentials/151-logistic-regression-essentials-in-r/.
+
+Smith, Tom W., Davern, Michael, Freese, Jeremy, and Morgan, Stephen L., General Social Surveys, 1972-2018 [machine-readable data file] /Principal Investigator, Smith, Tom W.; Co-Principal Investigators, Michael Davern, Jeremy Freese and Stephen L. Morgan; Sponsored by National Science Foundation. --NORC ed.-- Chicago: NORC, 2019.
+1 data file (64,814 logical records) + 1 codebook (3,758 pp.). -- (National Data Program for the Social Sciences, no. 25).
+
